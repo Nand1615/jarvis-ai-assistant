@@ -1,0 +1,147 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>JARVIS Assistant</title>
+  <style>
+    html, body { margin:0; padding:0; height:100%; background:#0b0f1a; color:#e6e9ef; font-family:Inter, system-ui, sans-serif; }
+    #app { display:flex; height:100%; }
+    #canvas { position:absolute; inset:0; }
+    .panel { position:relative; z-index:2; width:380px; background:rgba(10,12,20,0.7); backdrop-filter: blur(14px); border-left: 1px solid rgba(255,255,255,0.08); padding:14px; display:flex; flex-direction:column; }
+    .title { font-weight:700; letter-spacing:0.3px; margin-bottom:6px; }
+    .greet { color:#a5b4fc; margin-bottom:12px; }
+    .chat { flex:1; overflow:auto; border:1px solid rgba(255,255,255,0.08); border-radius:10px; padding:10px; background:rgba(255,255,255,0.03); }
+    .msg { margin:8px 0; }
+    .user { color:#93e2d5; }
+    .assistant { color:#e6e9ef; }
+    .input { display:flex; gap:6px; margin-top:10px; }
+    input[type=text] { flex:1; padding:10px 12px; border-radius:8px; border:1px solid rgba(255,255,255,0.1); background:rgba(255,255,255,0.06); color:#e6e9ef; }
+    button { padding:10px 12px; border-radius:8px; border:1px solid rgba(255,255,255,0.1); background:#1b2236; color:#e6e9ef; cursor:pointer; }
+    button:hover { background:#223055; }
+    .mic { width:44px; }
+  </style>
+</head>
+<body>
+  <canvas id="canvas"></canvas>
+  <div class="panel">
+    <div class="title">JARVIS</div>
+    <div class="greet" id="greet"></div>
+    <div class="chat" id="chat"></div>
+    <div class="input">
+      <input type="text" id="text" placeholder="Type your command..." />
+      <button id="send">Send</button>
+      <button id="mic" class="mic">🎤</button>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/three@0.161.0/build/three.min.js"></script>
+  <script>
+    // Greeting
+    const greetEl = document.getElementById('greet');
+    const hour = new Date().getHours();
+    let t = 'Good evening'; if (hour<12) t='Good morning'; else if (hour<18) t='Good afternoon';
+    greetEl.textContent = `${t}! How was your day? How may I help you today?`;
+
+    // Chat helpers
+    const chat = document.getElementById('chat');
+    const input = document.getElementById('text');
+    const sendBtn = document.getElementById('send');
+    const micBtn = document.getElementById('mic');
+
+    function append(role, text){
+      const div = document.createElement('div');
+      div.className = `msg ${role}`;
+      div.textContent = (role==='user'? 'You: ' : 'JARVIS: ') + text;
+      chat.appendChild(div);
+      chat.scrollTop = chat.scrollHeight;
+    }
+
+    async function send(text){
+      append('user', text);
+      input.value = '';
+      try {
+        const resp = await fetch('/api/chat', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({text})});
+        const data = await resp.json();
+        append('assistant', data.reply || '');
+        speak(data.reply || '');
+      } catch(e){ append('assistant', 'Network error.'); }
+    }
+
+    sendBtn.onclick = ()=>{ const t = input.value.trim(); if(t) send(t); };
+    input.addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ const t=input.value.trim(); if(t) send(t); }});
+
+    // Simple speech synthesis for replies
+    function speak(text){
+      try { const u = new SpeechSynthesisUtterance(text); speechSynthesis.speak(u); } catch(e){}
+    }
+
+    // Microphone capture using Web Speech API
+    let recognizing=false; let recognition=null;
+    if ('webkitSpeechRecognition' in window){
+      recognition = new webkitSpeechRecognition();
+      recognition.lang = 'en-US';
+      recognition.continuous = false;
+      recognition.interimResults = false;
+      recognition.onresult = (e)=>{ const t=e.results[0][0].transcript; if(t) send(t); recognizing=false; micBtn.textContent='🎤'; };
+      recognition.onend = ()=>{ recognizing=false; micBtn.textContent='🎤'; };
+    }
+
+    micBtn.onclick = ()=>{
+      if(!recognition){ alert('Speech recognition not supported in this browser.'); return; }
+      if(recognizing){ recognition.stop(); recognizing=false; micBtn.textContent='🎤'; return; }
+      recognition.start(); recognizing=true; micBtn.textContent='■';
+    };
+
+    // Three.js animated scene: concentric rings + particles breathing effect
+    const canvas = document.getElementById('canvas');
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.1, 1000);
+    camera.position.z = 8;
+    const renderer = new THREE.WebGLRenderer({canvas, antialias:true, alpha:true});
+    renderer.setSize(window.innerWidth, window.innerHeight);
+
+    const group = new THREE.Group();
+    scene.add(group);
+
+    const rings = [];
+    for(let i=0;i<7;i++){
+      const geo = new THREE.TorusGeometry(1.2 + i*0.35, 0.015 + i*0.01, 16, 128);
+      const mat = new THREE.MeshBasicMaterial({ color: new THREE.Color(`hsl(${220+i*8}, 60%, ${48 - i*4}%)`), transparent:true, opacity:0.85 });
+      const torus = new THREE.Mesh(geo, mat);
+      torus.rotation.x = Math.PI/2;
+      group.add(torus);
+      rings.push(torus);
+    }
+
+    // Particles
+    const pgeo = new THREE.BufferGeometry();
+    const pcount = 1200;
+    const pos = new Float32Array(pcount*3);
+    for(let i=0;i<pcount;i++){
+      const r = 4*Math.random()+1.2; const ang = Math.random()*Math.PI*2; const y = (Math.random()-0.5)*1.2;
+      pos[i*3] = Math.cos(ang)*r; pos[i*3+1] = y; pos[i*3+2] = Math.sin(ang)*r;
+    }
+    pgeo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    const pmat = new THREE.PointsMaterial({ color: 0x6ab3f7, size: 0.02, transparent:true, opacity:0.75 });
+    const points = new THREE.Points(pgeo, pmat);
+    group.add(points);
+
+    const clock = new THREE.Clock();
+    function animate(){
+      requestAnimationFrame(animate);
+      const t = clock.getElapsedTime();
+      group.rotation.y = Math.sin(t*0.15)*0.25;
+      rings.forEach((r,i)=>{ r.rotation.z = t*0.04 + i*0.05; r.scale.setScalar(1 + Math.sin(t*0.9 + i*0.6)*0.03); });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.render(scene, camera);
+    }
+    animate();
+
+    window.addEventListener('resize', ()=>{
+      camera.aspect = window.innerWidth/window.innerHeight; camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,57 @@
+{
+  "greeting": [
+    "hi",
+    "hello",
+    "hey",
+    "good morning"
+  ],
+  "time": [
+    "what time is it",
+    "tell me the time",
+    "current time"
+  ],
+ 
+  "open_website": [
+  "open google",
+  "open youtube",
+  "open gmail",
+  "open github",
+  "open facebook"
+],
+"open_app": [
+  "open notepad",
+  "notepad",
+  "open calculator",
+  "calculator",
+  "open vscode",
+  "vscode",
+  "open visual studio code"
+],
+
+
+
+"close_app": [
+  "close it",
+  "close the app",
+  "close application",
+  "close notepad",
+  "close calculator",
+  "close vscode",
+  "close visual studio code"
+],
+
+"open_again": [
+  "open it again",
+  "open again",
+  "reopen it",
+  "open the last one"
+],
+
+
+  "exit": [
+    "exit",
+    "quit",
+    "bye",
+    "stop"
+  ]
+}
